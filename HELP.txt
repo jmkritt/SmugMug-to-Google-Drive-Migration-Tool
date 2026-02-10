@@ -1,0 +1,695 @@
+================================================================================
+  SmugMug → Google Drive Migration Tool
+  Complete Help Guide
+  Version 1.0 | February 2026
+  Created by Jeremy Kritt
+================================================================================
+
+TABLE OF CONTENTS
+─────────────────
+  1.  Introduction
+  2.  What You Need Before Starting
+  3.  Getting Your SmugMug API Key
+  4.  Setting Up Google Drive API Credentials
+  5.  Installing Python (Windows)
+  6.  Installing the Migration Tool
+  7.  Using the App: Setup Tab
+  8.  Using the App: Migrate Tab
+  9.  Using the App: Log Tab
+  10. Using the App: About Tab
+  11. Building a Windows Executable (.exe)
+  12. How the Migration Works
+  13. Frequently Asked Questions
+  14. Troubleshooting
+  15. Security & Privacy
+  16. Speed & Performance
+  17. Uninstalling & Cleanup
+
+
+================================================================================
+1. INTRODUCTION
+================================================================================
+
+The SmugMug to Google Drive Migration Tool is a desktop application that copies
+all your photos and videos from SmugMug to Google Drive. It preserves your album
+folder structure, handles large libraries automatically, and can be stopped and
+resumed at any time.
+
+This guide walks you through everything: setting up API credentials, installing
+the software, running the migration, and troubleshooting any issues along the
+way.
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  YOUR SMUGMUG PHOTOS ARE SAFE                                          │
+  │                                                                         │
+  │  This tool only READS from SmugMug. It downloads copies of your files   │
+  │  and uploads them to Google Drive. Nothing on your SmugMug account is   │
+  │  modified, moved, or deleted. The app requests read-only permissions,   │
+  │  so it cannot change anything even if something goes wrong.             │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+2. WHAT YOU NEED BEFORE STARTING
+================================================================================
+
+Before you begin, make sure you have the following:
+
+  • A SmugMug account with photos you want to migrate
+  • A Google account (Gmail) with enough Google Drive storage for your photos
+  • A Windows computer with an internet connection
+  • About 30 minutes for initial setup (one-time only)
+
+You will also need to create two sets of API credentials (free). The next two
+sections walk you through this step by step.
+
+
+================================================================================
+3. GETTING YOUR SMUGMUG API KEY
+================================================================================
+
+SmugMug requires an API key so the migration tool can access your photos on
+your behalf. This is free and takes just a few minutes.
+
+Step 1: Go to the SmugMug developer site
+  Open your web browser and navigate to:
+  https://api.smugmug.com/api/developer/apply
+
+Step 2: Log in to SmugMug
+  Use your existing SmugMug username and password to sign in.
+
+Step 3: Fill out the application form
+  Enter a name for your application (anything is fine, such as "Photo
+  Migration"). For the description, you can write "Migrating my photos to
+  Google Drive." Select Read access when asked about permissions.
+
+Step 4: Submit and get your keys
+  After submitting, you will receive two pieces of information:
+    - API Key (also called Consumer Key)
+    - API Secret (also called Consumer Secret)
+  Copy both of these somewhere safe. You will enter them into the migration
+  tool later.
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  WARNING: Keep your credentials private                                 │
+  │                                                                         │
+  │  Your API Key and Secret are like a password for your SmugMug account.  │
+  │  Do not share them publicly or post them online. The migration tool     │
+  │  stores them locally on your computer.                                  │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+4. SETTING UP GOOGLE DRIVE API CREDENTIALS
+================================================================================
+
+Google requires OAuth 2.0 credentials so the migration tool can upload files
+to your Google Drive. This is also free but involves a few more steps than
+SmugMug.
+
+
+4.1 Create a Google Cloud Project
+──────────────────────────────────
+
+Step 1: Open Google Cloud Console
+  Go to https://console.cloud.google.com/ and sign in with the Google account
+  where you want your photos uploaded.
+
+Step 2: Create a new project
+  Click the project dropdown at the top of the page, then click "New Project."
+  Name it something like "SmugMug Migration" and click Create.
+
+Step 3: Make sure your new project is selected
+  The project name should appear in the dropdown at the top of the page.
+
+
+4.2 Enable the Google Drive API
+────────────────────────────────
+
+Step 1: Go to the API Library
+  In the left sidebar, click "APIs & Services" then "Library."
+
+Step 2: Search for Google Drive API
+  Type "Google Drive API" in the search bar.
+
+Step 3: Enable it
+  Click on "Google Drive API" in the results, then click the blue "Enable"
+  button. This is a critical step. Without it, the migration tool cannot
+  upload files to your Drive.
+
+
+4.3 Configure the OAuth Consent Screen
+───────────────────────────────────────
+
+Step 1: Go to OAuth consent screen
+  In the left sidebar under "APIs & Services," click "OAuth consent screen."
+
+Step 2: Select External
+  Choose "External" as the user type and click Create.
+
+Step 3: Fill in required fields
+  You only need to fill in three fields:
+    - App name (e.g., "SmugMug Migration")
+    - User support email (your email)
+    - Developer contact email (your email)
+  Leave everything else blank.
+
+Step 4: Save and continue
+  Click "Save and Continue" through the remaining screens (Scopes, Test
+  Users). You can skip all of these by just clicking Save and Continue on
+  each page.
+
+
+4.4 Create OAuth Credentials
+─────────────────────────────
+
+Step 1: Go to Credentials
+  In the left sidebar, click "Credentials."
+
+Step 2: Create credentials
+  Click the "+ CREATE CREDENTIALS" button at the top, then select
+  "OAuth client ID."
+
+Step 3: Choose Desktop App
+  For Application type, select "Desktop app" from the dropdown. Give it
+  any name, such as "SmugMug Migration."
+
+Step 4: Download the JSON file
+  After clicking Create, a dialog will appear showing your Client ID and
+  Client Secret. Click the "DOWNLOAD JSON" button. Save this file somewhere
+  you can find it easily, such as your Downloads folder. This is the
+  credentials file the migration tool needs.
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  TIP: You only do this once                                             │
+  │                                                                         │
+  │  After the initial setup, the migration tool saves an authentication    │
+  │  token so you will not need to repeat these steps. The token refreshes  │
+  │  automatically.                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+5. INSTALLING PYTHON (WINDOWS)
+================================================================================
+
+The migration tool is written in Python. If you do not already have Python
+installed, follow these steps:
+
+Step 1: Download Python
+  Go to https://www.python.org/downloads/ and click the large yellow
+  "Download Python" button.
+
+Step 2: Run the installer
+  Open the downloaded file. On the very first screen of the installer, you
+  will see a checkbox at the bottom that says "Add python.exe to PATH."
+
+  *** CHECK THIS BOX BEFORE CLICKING ANYTHING ELSE ***
+
+  This is the most important step. Then click "Install Now."
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  WARNING: Do not skip the PATH checkbox                                 │
+  │                                                                         │
+  │  If you forget to check "Add python.exe to PATH," Python will install   │
+  │  but your computer will not be able to find it. You would need to       │
+  │  uninstall and reinstall Python with the box checked.                   │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+Step 3: Verify the installation
+  Close any open Command Prompt or PowerShell windows and open a new one
+  (press Win+R, type cmd, press Enter). Type the following command:
+
+    python --version
+
+  You should see something like "Python 3.14.3" (the exact version may
+  differ). If you see "Python was not found," the PATH was not set correctly
+  during installation.
+
+
+================================================================================
+6. INSTALLING THE MIGRATION TOOL
+================================================================================
+
+6.1 Install Required Libraries
+───────────────────────────────
+
+Open Command Prompt or PowerShell and run the following command:
+
+  python -m pip install requests requests-oauthlib google-auth google-auth-oauthlib google-api-python-client
+
+If that does not work, try replacing "python" with "py":
+
+  py -m pip install requests requests-oauthlib google-auth google-auth-oauthlib google-api-python-client
+
+
+6.2 Download the Tool
+─────────────────────
+
+Save the file "smugmug_to_gdrive_gui.py" to a folder on your computer,
+such as your Downloads folder or a dedicated folder like C:\SmugMugMigration.
+
+
+6.3 Run the Tool
+────────────────
+
+In Command Prompt, navigate to the folder where you saved the file and run it:
+
+  cd C:\Users\YourName\Downloads
+  python smugmug_to_gdrive_gui.py
+
+A window will open with the migration tool interface.
+
+
+================================================================================
+7. USING THE APP: SETUP TAB
+================================================================================
+
+The Setup tab is where you enter your credentials and configure migration
+options. You only need to do this once.
+
+
+7.1 SmugMug Credentials
+────────────────────────
+
+Paste your API Key and API Secret into the respective fields. Then click
+"Connect SmugMug." A browser window will open asking you to authorize the
+application.
+
+After authorizing, SmugMug will display a 6-digit verification code. Enter
+this code in the popup dialog and click Submit.
+
+Once connected, you will see a green "Connected ✓" next to the button.
+
+
+7.2 Google Drive Credentials
+─────────────────────────────
+
+Click "Browse" and navigate to the JSON credentials file you downloaded from
+Google Cloud Console. Select it, then click "Connect Google Drive." A browser
+window will open asking you to sign in to your Google account and grant
+permission. Click Allow.
+
+Once connected, you will see a green "Connected ✓" next to the button.
+
+
+7.3 Migration Options
+─────────────────────
+
+Google Drive folder name:
+  This is the name of the root folder that will be created in your Google
+  Drive. All your SmugMug albums will be organized inside this folder. The
+  default is "SmugMug Migration" but you can change it to anything you like.
+
+Skip files already in Google Drive:
+  When checked (the default), the tool will not re-upload files that already
+  exist in the destination folder. This is useful if you are resuming a
+  migration or running the tool a second time.
+
+Retry previously failed files:
+  When checked, the tool will attempt to re-download and re-upload any files
+  that failed on a previous run.
+
+After entering your credentials and choosing your options, click "Save
+Settings." Your settings are saved locally so you do not need to re-enter
+them next time.
+
+
+================================================================================
+8. USING THE APP: MIGRATE TAB
+================================================================================
+
+The Migrate tab is where you start, monitor, and control the migration.
+
+
+8.1 Starting a Migration
+─────────────────────────
+
+Click "Start Migration." The tool will first fetch your SmugMug album list,
+then count all images across all albums. This initial scan may take a minute
+or two depending on the size of your library.
+
+Once counting is complete, the tool begins downloading each photo from
+SmugMug and uploading it to Google Drive.
+
+
+8.2 Progress Indicators
+───────────────────────
+
+Overall progress bar:
+  Shows how many total files have been processed out of the total number
+  found across all albums.
+
+Current album progress bar:
+  Shows progress within the album currently being processed.
+
+Counters:
+  Three counters at the bottom show:
+    - Migrated: successfully transferred
+    - Skipped: already existed or previously completed
+    - Failed: errors encountered
+
+
+8.3 Stopping and Resuming
+──────────────────────────
+
+Click "Stop" to pause the migration after the current file finishes. The
+tool saves its progress automatically. To resume, simply click "Start
+Migration" again. It will skip all previously completed files and continue
+from where it left off.
+
+
+8.4 Resetting Progress
+──────────────────────
+
+Click "Reset Progress" if you want to start the migration from scratch. This
+clears the record of which files have been completed. It does NOT delete any
+files from Google Drive.
+
+
+================================================================================
+9. USING THE APP: LOG TAB
+================================================================================
+
+The Log tab shows a detailed, timestamped record of everything the tool is
+doing. Each line shows the time, the action taken, and whether it succeeded
+or failed.
+
+  ✓  = successful transfer
+  ✗  = failed transfer
+
+You can use the "Clear Log" button to reset the display. A copy of the log
+is also saved to a file called "migration.log" in the application directory,
+so you have a permanent record even after closing the app.
+
+
+================================================================================
+10. USING THE APP: ABOUT TAB
+================================================================================
+
+The About tab displays information about the tool, including the version
+number, author credit, license, and disclaimer. The tool is open source
+under the MIT License.
+
+
+================================================================================
+11. BUILDING A WINDOWS EXECUTABLE (.exe)
+================================================================================
+
+If you want to create a standalone .exe file that can run without Python
+installed, you can use PyInstaller.
+
+Step 1: Install PyInstaller
+  Open Command Prompt and run:
+
+    python -m pip install pyinstaller
+
+Step 2: Build the executable
+  Navigate to the folder containing the script and run:
+
+    python -m PyInstaller --onefile --windowed --name "SmugMug2GDrive" smugmug_to_gdrive_gui.py
+
+Step 3: Find your .exe
+  The executable will be created in a "dist" subfolder. You can copy
+  SmugMug2GDrive.exe anywhere and run it by double-clicking. No Python
+  installation is needed on the target computer.
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  TIP: Sharing the .exe                                                  │
+  │                                                                         │
+  │  You can share the .exe file with others. They will still need their    │
+  │  own SmugMug API credentials and Google Drive credentials, but they     │
+  │  will not need to install Python or any libraries.                      │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+12. HOW THE MIGRATION WORKS
+================================================================================
+
+12.1 The Migration Process
+──────────────────────────
+
+When you click Start Migration, the tool performs these steps in order:
+
+  1. Connects to SmugMug and retrieves your user profile.
+  2. Fetches a list of all your albums.
+  3. For each album, retrieves the list of all photos and videos.
+  4. Creates matching folders in Google Drive, preserving your album structure.
+  5. For each photo: downloads it from SmugMug to a temporary file on your
+     computer, uploads it to Google Drive, then deletes the temporary file.
+  6. Records progress after each file so the migration can be resumed if
+     interrupted.
+
+
+12.2 Folder Structure
+─────────────────────
+
+The tool creates a root folder in Google Drive (default name: "SmugMug
+Migration") and recreates your SmugMug album hierarchy inside it.
+
+For example:
+
+  SmugMug Migration/
+  ├── Family/
+  │   ├── Vacation 2023/
+  │   │   ├── IMG_001.jpg
+  │   │   └── IMG_002.jpg
+  │   └── Christmas/
+  │       └── photo.jpg
+  └── Portfolio/
+      ├── landscape_01.jpg
+      └── portrait_02.jpg
+
+
+12.3 File Handling
+──────────────────
+
+The tool downloads the largest available version of each photo (typically the
+original upload). Files are transferred one at a time through a temporary
+file on your computer. The temporary file is deleted immediately after each
+successful upload, so the tool does not consume significant disk space.
+
+
+================================================================================
+13. FREQUENTLY ASKED QUESTIONS
+================================================================================
+
+Q: Will my SmugMug photos be deleted?
+A: No. The tool only reads from SmugMug. It downloads copies of your files.
+   Your originals remain exactly where they are, completely untouched. The
+   SmugMug API key is configured with read-only permissions.
+
+Q: Does it transfer videos too?
+A: Yes. The tool transfers all media files in your SmugMug albums, including
+   photos and videos.
+
+Q: What if my internet connection drops?
+A: The tool saves progress after every file. If your connection drops, the
+   current file may fail, but you can restart the migration and it will
+   resume from where it left off. Use "Retry previously failed files" to
+   reattempt any failed transfers.
+
+Q: Can I run it overnight?
+A: Yes. The tool runs continuously until all files are processed or you
+   click Stop. Make sure your computer does not go to sleep. Adjust your
+   Windows power settings: Settings > System > Power & sleep > set Sleep
+   to "Never" while plugged in.
+
+Q: What about duplicate files?
+A: By default, the tool checks if a file with the same name already exists
+   in the destination Google Drive folder. If it does, the file is skipped.
+
+Q: Does it preserve photo metadata (EXIF data)?
+A: Yes. The tool downloads and uploads the original file bytes without
+   modification. All embedded metadata including EXIF data, camera info,
+   GPS coordinates, and timestamps are preserved.
+
+Q: How much Google Drive storage do I need?
+A: You need enough free space to hold all the photos and videos from your
+   SmugMug account. Check your SmugMug account settings to see your total
+   storage usage, then compare to your available Google Drive space.
+
+Q: Can I migrate only specific albums?
+A: The current version migrates all albums. If you need to migrate only
+   certain albums, you can temporarily reorganize in SmugMug first.
+
+Q: Can I use this on a Mac or Linux?
+A: Yes. The Python script works on Mac and Linux. Install Python, install
+   the dependencies, and run the script. The .exe build is Windows-specific,
+   but the script itself is cross-platform.
+
+
+================================================================================
+14. TROUBLESHOOTING
+================================================================================
+
+ISSUE: "python" is not recognized
+CAUSE: Python not installed or not on PATH
+FIX:   Reinstall Python and check "Add python.exe to PATH"
+
+ISSUE: "pip" is not recognized
+CAUSE: pip not on system PATH
+FIX:   Use "python -m pip install" instead of "pip install"
+
+ISSUE: SmugMug auth error: parameter_absent oauth_callback
+CAUSE: Missing callback in OAuth request
+FIX:   Update to the latest version of the migration tool
+
+ISSUE: SmugMug auth: invalid verification code
+CAUSE: Code expired or was mistyped
+FIX:   Click Connect SmugMug again and enter the new code quickly
+
+ISSUE: Google Drive: API has not been used / disabled
+CAUSE: Google Drive API not enabled in your project
+FIX:   Go to Google Cloud Console > APIs & Services > Library, search for
+       "Google Drive API," and click Enable
+
+ISSUE: Google Drive: 403 Forbidden
+CAUSE: Consent screen not configured or credentials expired
+FIX:   Reconfigure OAuth consent screen, or delete google_token.json and
+       reconnect
+
+ISSUE: No albums found
+CAUSE: API response format issue or empty account
+FIX:   Update to latest version; check Log tab for diagnostic details
+
+ISSUE: Migration stops partway through
+CAUSE: Rate limiting or network issues
+FIX:   Wait a few minutes and click Start Migration again; it resumes
+       automatically
+
+ISSUE: App window does not open
+CAUSE: Missing Python dependencies
+FIX:   Run the pip install command again to ensure all libraries installed
+
+ISSUE: .exe build fails
+CAUSE: PyInstaller compatibility or PATH issue
+FIX:   Try: python -m PyInstaller (note capitalization)
+
+
+================================================================================
+15. SECURITY & PRIVACY
+================================================================================
+
+  • Everything runs locally. The tool runs entirely on your computer. Your
+    photos are downloaded from SmugMug to a temporary file on your machine,
+    then uploaded to Google Drive. No data passes through any third-party
+    server.
+
+  • Read-only SmugMug access. The tool requests only Read permissions from
+    SmugMug. It cannot modify, move, or delete your SmugMug photos.
+
+  • Scoped Google Drive access. The tool uses the drive.file scope, meaning
+    it can only access files and folders that it creates. It cannot see or
+    modify your other Google Drive files.
+
+  • Credentials stored locally. Your API keys and authentication tokens are
+    saved in configuration files on your computer. They are not transmitted
+    anywhere.
+
+  • Open source. The tool is a single Python file. You can read every line
+    of code to verify exactly what it does.
+
+  • Revocable access. You can revoke the tool's access at any time:
+    - SmugMug: Go to your SmugMug account/privacy settings
+    - Google: Go to https://myaccount.google.com/permissions and remove
+      the app
+
+
+================================================================================
+16. SPEED & PERFORMANCE
+================================================================================
+
+Migration speed depends on your internet connection, the size of your photos,
+and API rate limits. Here are rough estimates:
+
+  Library Size       Estimated Time
+  ─────────────────  ──────────────────
+  100 photos         5 to 10 minutes
+  500 photos         30 min to 1 hour
+  1,000 photos       1 to 2 hours
+  5,000 photos       5 to 8 hours
+  10,000+ photos     Overnight (12+ hrs)
+
+Larger files such as RAW images or HD videos will take longer per file. The
+tool includes a 200ms delay between each file to avoid triggering API rate
+limits.
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  TIP: Run it overnight                                                  │
+  │                                                                         │
+  │  For large libraries, start the migration in the evening and let it     │
+  │  run overnight. Adjust your Windows power settings so your computer     │
+  │  does not go to sleep:                                                  │
+  │  Settings > System > Power & sleep > set Sleep to "Never" (plugged in) │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+17. UNINSTALLING & CLEANUP
+================================================================================
+
+If you want to remove the migration tool after your migration is complete:
+
+  1. Delete the tool files: Remove smugmug_to_gdrive_gui.py (or
+     SmugMug2GDrive.exe) and any associated files from your computer.
+
+  2. Delete saved credentials: Remove these files from the same directory:
+     config.json, smugmug_token.json, google_token.json,
+     google_credentials.json, and migration_state.json.
+
+  3. Revoke SmugMug access: Log in to SmugMug, go to your account settings,
+     and revoke access for the migration app.
+
+  4. Revoke Google Drive access: Go to
+     https://myaccount.google.com/permissions, find the migration app,
+     and click Remove Access.
+
+  5. (Optional) Delete the Google Cloud project: If you created a project
+     solely for this migration, you can delete it at
+     https://console.cloud.google.com/
+
+
+================================================================================
+LICENSE
+================================================================================
+
+MIT License
+
+Copyright (c) 2026 Jeremy Kritt
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+================================================================================
+DISCLAIMER
+================================================================================
+
+This software is provided "as is" without warranty of any kind. The author
+is not responsible for any data loss, service disruption, or other damages
+resulting from the use of this tool. Users are responsible for maintaining
+their own backups and verifying the completeness of any migration. This tool
+is not affiliated with, endorsed by, or sponsored by SmugMug, Inc. or
+Google LLC. Use at your own risk.
+
+
+─────────────────────────────────────────────────────────────────────────────
+  Created by Jeremy Kritt | Version 1.0 | February 2026
+─────────────────────────────────────────────────────────────────────────────
