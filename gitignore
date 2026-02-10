@@ -1,0 +1,24 @@
+# Credentials and tokens — NEVER commit these
+google_credentials.json
+google_token.json
+smugmug_token.json
+config.json
+.env
+
+# Migration state
+migration_state.json
+migration.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# OS
+.DS_Store
+Thumbs.db
