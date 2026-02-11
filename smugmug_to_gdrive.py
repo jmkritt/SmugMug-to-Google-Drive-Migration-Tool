@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-SmugMug to Google Drive Photo Migration Tool
-=============================================
-Migrates all photos (and videos) from a SmugMug account to Google Drive,
-preserving the album folder structure.
+SmugMug to Google Drive Photo Migration Tool (CLI) v2.0
+========================================================
+Migrates photos and videos from a SmugMug account to Google Drive,
+preserving the album folder structure. Select which albums to migrate.
+
+Created by Jeremy Kritt
+Licensed under the MIT License
+https://github.com/jeremykritt/smugmug-to-gdrive
 
 Prerequisites:
     pip install requests requests-oauthlib google-auth google-auth-oauthlib google-api-python-client tqdm
@@ -104,7 +108,8 @@ class SmugMugClient:
             logger.warning("Saved SmugMug token is invalid. Re-authenticating...")
 
         # Step 1: Get request token
-        oauth = OAuth1Session(self.api_key, client_secret=self.api_secret)
+        oauth = OAuth1Session(self.api_key, client_secret=self.api_secret,
+                              callback_uri="oob")
         fetch_response = oauth.fetch_request_token(SMUGMUG_REQUEST_TOKEN_URL)
         resource_owner_key = fetch_response.get("oauth_token")
         resource_owner_secret = fetch_response.get("oauth_token_secret")
@@ -159,10 +164,39 @@ class SmugMugClient:
         data = self._get("/api/v2!authuser")
         return data["Response"]["User"]
 
-    def get_albums(self, user_uri: str) -> list[dict]:
+    def get_user_albums_uri(self, user: dict) -> Optional[str]:
+        """Get the albums URI with multiple fallback methods."""
+        uris = user.get("Uris", {})
+
+        # Method 1: Direct UserAlbums URI
+        user_albums = uris.get("UserAlbums", {})
+        if isinstance(user_albums, dict) and "Uri" in user_albums:
+            return user_albums["Uri"]
+        if isinstance(user_albums, str):
+            return user_albums
+
+        # Method 2: Try Node -> Uris
+        node = uris.get("Node", {})
+        if isinstance(node, dict) and "Uri" in node:
+            node_data = self._get(node["Uri"])
+            if node_data and "Response" in node_data:
+                node_info = node_data["Response"].get("Node", {})
+                node_uris = node_info.get("Uris", {})
+                child_nodes = node_uris.get("ChildNodes", {})
+                if isinstance(child_nodes, dict) and "Uri" in child_nodes:
+                    return child_nodes["Uri"]
+
+        # Method 3: Construct from nickname
+        nickname = user.get("NickName", user.get("Name", ""))
+        if nickname:
+            return f"/api/v2/user/{nickname}"
+
+        return None
+
+    def get_albums(self, user_uri: str) -> list:
         """Get all albums for a user, handling pagination."""
         albums = []
-        uri = f"{user_uri}!albums"
+        uri = f"{user_uri}!albums" if "!albums" not in user_uri else user_uri
         params = {"count": 100, "start": 1}
 
         while True:
@@ -182,7 +216,7 @@ class SmugMugClient:
 
         return albums
 
-    def get_album_images(self, album_key: str) -> list[dict]:
+    def get_album_images(self, album_key: str) -> list:
         """Get all images in an album, handling pagination."""
         images = []
         uri = f"/api/v2/album/{album_key}!images"
@@ -226,7 +260,6 @@ class SmugMugClient:
         try:
             resp = self.session.get(url, stream=True)
             resp.raise_for_status()
-            total = int(resp.headers.get("content-length", 0))
             with open(dest_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
@@ -244,7 +277,7 @@ class GoogleDriveClient:
 
     def __init__(self):
         self.service = None
-        self._folder_cache: dict[str, str] = {}  # name -> folder_id
+        self._folder_cache: dict = {}
 
     def authenticate(self) -> None:
         """Authenticate with Google Drive via OAuth 2.0."""
@@ -274,7 +307,6 @@ class GoogleDriveClient:
         if cache_key in self._folder_cache:
             return self._folder_cache[cache_key]
 
-        # Search for existing folder
         query = f"name='{name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
         if parent_id:
             query += f" and '{parent_id}' in parents"
@@ -327,8 +359,8 @@ class MigrationState:
 
     def __init__(self, state_file: str = STATE_FILE):
         self.state_file = state_file
-        self.migrated: set[str] = set()  # set of SmugMug image keys
-        self.failed: dict[str, str] = {}  # image_key -> error message
+        self.migrated: set = set()
+        self.failed: dict = {}
         self._load()
 
     def _load(self):
@@ -359,6 +391,82 @@ class MigrationState:
 
 
 # ---------------------------------------------------------------------------
+# Album Selection
+# ---------------------------------------------------------------------------
+def select_albums(albums: list, select_all: bool = False) -> list:
+    """Display albums and let the user choose which ones to migrate."""
+    if select_all:
+        return albums
+
+    print(f"\n{'='*60}")
+    print("YOUR SMUGMUG ALBUMS")
+    print(f"{'='*60}")
+    print(f"  {'#':<5} {'Album Name':<35} {'Files':<8} Path")
+    print(f"  {'-'*5} {'-'*35} {'-'*8} {'-'*20}")
+
+    for i, album in enumerate(albums, 1):
+        name = album.get("Name", "Untitled")
+        count = album.get("ImageCount", "?")
+        path = album.get("UrlPath", "")
+        if len(name) > 33:
+            name = name[:30] + "..."
+        print(f"  {i:<5} {name:<35} {str(count):<8} {path}")
+
+    print(f"\n  Total: {len(albums)} albums")
+    print(f"{'='*60}")
+    print("\nOptions:")
+    print("  Enter album numbers separated by commas (e.g., 1,3,5)")
+    print("  Enter a range with a dash (e.g., 1-10)")
+    print("  Combine both (e.g., 1-5,8,12-15)")
+    print("  Type 'all' to select everything")
+    print("  Type 'q' to quit")
+    print()
+
+    while True:
+        choice = input("Select albums to migrate: ").strip().lower()
+
+        if choice == 'q':
+            print("Migration cancelled.")
+            sys.exit(0)
+
+        if choice == 'all':
+            print(f"\nSelected all {len(albums)} albums.")
+            return albums
+
+        try:
+            selected_indices = set()
+            parts = choice.replace(" ", "").split(",")
+            for part in parts:
+                if "-" in part:
+                    start, end = part.split("-", 1)
+                    for n in range(int(start), int(end) + 1):
+                        selected_indices.add(n)
+                else:
+                    selected_indices.add(int(part))
+
+            invalid = [n for n in selected_indices if n < 1 or n > len(albums)]
+            if invalid:
+                print(f"  Invalid numbers: {invalid}. Must be between 1 and {len(albums)}.")
+                continue
+
+            selected = [albums[i - 1] for i in sorted(selected_indices)]
+            print(f"\nSelected {len(selected)} albums:")
+            for album in selected:
+                print(f"  - {album.get('Name', 'Untitled')} ({album.get('ImageCount', '?')} files)")
+
+            confirm = input(f"\nProceed with these {len(selected)} albums? (y/n): ").strip().lower()
+            if confirm in ('y', 'yes'):
+                return selected
+            else:
+                print("Let's try again.\n")
+                continue
+
+        except ValueError:
+            print("  Invalid input. Enter numbers like: 1,3,5 or 1-10 or all")
+            continue
+
+
+# ---------------------------------------------------------------------------
 # Main Migration Logic
 # ---------------------------------------------------------------------------
 def migrate(
@@ -366,6 +474,7 @@ def migrate(
     dry_run: bool = False,
     skip_existing: bool = True,
     retry_failed: bool = False,
+    select_all: bool = False,
 ):
     """
     Main migration function.
@@ -375,12 +484,12 @@ def migrate(
         dry_run: If True, list what would be migrated without downloading/uploading.
         skip_existing: If True, skip files that already exist in Google Drive.
         retry_failed: If True, retry previously failed images.
+        select_all: If True, skip album selection and migrate everything.
     """
     # --- Load environment ---
     api_key = os.environ.get("SMUGMUG_API_KEY", "")
     api_secret = os.environ.get("SMUGMUG_API_SECRET", "")
     if not api_key or not api_secret:
-        # Try loading from .env file
         env_path = Path(".env")
         if env_path.exists():
             for line in env_path.read_text().splitlines():
@@ -411,41 +520,46 @@ def migrate(
     logger.info(f"SmugMug user: {nickname}")
 
     logger.info("Fetching albums...")
-    albums = smugmug.get_albums(user["Uris"]["UserAlbums"]["Uri"])
+    albums_uri = smugmug.get_user_albums_uri(user)
+    if not albums_uri:
+        print("ERROR: Could not determine albums URI.")
+        sys.exit(1)
+
+    albums = smugmug.get_albums(albums_uri)
     logger.info(f"Found {len(albums)} albums.")
 
     if not albums:
         print("No albums found. Nothing to migrate.")
         return
 
+    # --- Album Selection ---
+    selected_albums = select_albums(albums, select_all=select_all)
+
     # --- Create root folder in Google Drive ---
     root_folder_id = gdrive.get_or_create_folder(root_folder_name)
 
-    # --- Process each album ---
+    # --- Process selected albums ---
     total_images = 0
     migrated_count = 0
     skipped_count = 0
     failed_count = 0
 
-    for album in albums:
+    for album in selected_albums:
         album_name = album.get("Name", "Untitled Album")
         album_key = album.get("AlbumKey", "")
         url_path = album.get("UrlPath", "")
 
-        # Handle nested folder paths (e.g., /Family/Vacation/2024)
         path_parts = [p for p in url_path.strip("/").split("/") if p and p != nickname]
         if not path_parts:
             path_parts = [album_name]
 
         logger.info(f"\nAlbum: {album_name} (Key: {album_key})")
 
-        # Create nested folders in Google Drive
         parent_id = root_folder_id
         for part in path_parts:
             parent_id = gdrive.get_or_create_folder(part, parent_id)
         album_folder_id = parent_id
 
-        # Get images in the album
         images = smugmug.get_album_images(album_key)
         logger.info(f"  {len(images)} images/videos in album")
         total_images += len(images)
@@ -458,31 +572,25 @@ def migrate(
                 print(f"  [{status}] {album_name}/{fname}")
             continue
 
-        # Migrate each image
         for img in tqdm(images, desc=f"  {album_name}", unit="file"):
             image_key = img.get("ImageKey", "")
             filename = img.get("FileName", f"{image_key}.jpg")
 
-            # Skip if already migrated
             if state.is_done(image_key) and not retry_failed:
                 skipped_count += 1
                 continue
 
-            # Skip if retry_failed is False and this was a failed item
             if not retry_failed and image_key in state.failed:
                 skipped_count += 1
                 continue
 
-            # Check if file already exists in Google Drive
             if skip_existing and gdrive.file_exists(filename, album_folder_id):
                 state.mark_done(image_key)
                 skipped_count += 1
                 continue
 
-            # Get download URL
             image_uri = img.get("Uris", {}).get("Image", {}).get("Uri", "")
             if not image_uri:
-                # Try alternative URI paths
                 image_uri = img.get("Uri", "")
 
             download_url = smugmug.get_image_download_url(image_uri)
@@ -493,7 +601,7 @@ def migrate(
                 failed_count += 1
                 continue
 
-            # Download to temp file, then upload to Google Drive
+            tmp_path = None
             try:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix) as tmp:
                     tmp_path = tmp.name
@@ -512,25 +620,21 @@ def migrate(
                 failed_count += 1
 
             finally:
-                # Clean up temp file
-                if os.path.exists(tmp_path):
+                if tmp_path and os.path.exists(tmp_path):
                     os.remove(tmp_path)
 
-            # Save state periodically (every 10 files)
             if (migrated_count + failed_count) % 10 == 0:
                 state.save()
 
-            # Small delay to avoid rate-limiting
             time.sleep(0.2)
 
-    # Final state save
     state.save()
 
     # --- Summary ---
     print(f"\n{'='*60}")
     print("MIGRATION SUMMARY")
     print(f"{'='*60}")
-    print(f"Total albums:      {len(albums)}")
+    print(f"Albums selected:   {len(selected_albums)} of {len(albums)}")
     print(f"Total images:      {total_images}")
     print(f"Migrated:          {migrated_count}")
     print(f"Skipped (exists):  {skipped_count}")
@@ -546,7 +650,7 @@ def migrate(
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(
-        description="Migrate all photos from SmugMug to Google Drive",
+        description="Migrate photos from SmugMug to Google Drive (v2.0)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -570,6 +674,11 @@ def main():
         action="store_true",
         help="Retry previously failed images",
     )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Migrate all albums without prompting for selection",
+    )
     args = parser.parse_args()
 
     migrate(
@@ -577,6 +686,7 @@ def main():
         dry_run=args.dry_run,
         skip_existing=not args.no_skip_existing,
         retry_failed=args.retry_failed,
+        select_all=args.all,
     )
 
 
