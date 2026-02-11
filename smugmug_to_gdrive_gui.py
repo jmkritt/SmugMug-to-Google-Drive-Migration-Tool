@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SmugMug → Google Drive Migration Tool (GUI)
-============================================
+SmugMug → Google Drive Migration Tool (GUI) v2.0
+==================================================
 A Windows-friendly desktop app with a simple menu to migrate
 all photos and videos from SmugMug to Google Drive.
 
@@ -334,16 +334,18 @@ class MigrationState:
 class MigrationApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("SmugMug → Google Drive Migration")
-        self.geometry("720x680")
+        self.title("SmugMug to Google Drive Migration v2.0")
+        self.geometry("750x750")
         self.resizable(True, True)
-        self.minsize(600, 500)
+        self.minsize(650, 600)
 
         self.config_data = load_config()
         self.smugmug: Optional[SmugMugClient] = None
         self.gdrive: Optional[GoogleDriveClient] = None
         self.migration_thread: Optional[threading.Thread] = None
         self.stop_flag = threading.Event()
+        self.fetched_albums: list = []
+        self.album_vars: dict = {}
 
         self._build_ui()
         self._load_saved_values()
@@ -371,13 +373,18 @@ class MigrationApp(tk.Tk):
         log_frame = ttk.Frame(notebook, padding=15)
         notebook.add(log_frame, text="  📋  Log  ")
 
-        # Tab 4: About
+        # Tab 4: Help
+        help_frame = ttk.Frame(notebook, padding=15)
+        notebook.add(help_frame, text="  ❓  Help  ")
+
+        # Tab 5: About
         about_frame = ttk.Frame(notebook, padding=15)
         notebook.add(about_frame, text="  ℹ  About  ")
 
         self._build_setup_tab(setup_frame)
         self._build_migrate_tab(migrate_frame)
         self._build_log_tab(log_frame)
+        self._build_help_tab(help_frame)
         self._build_about_tab(about_frame)
 
     def _build_setup_tab(self, parent):
@@ -440,35 +447,75 @@ class MigrationApp(tk.Tk):
         ttk.Button(parent, text="💾  Save Settings", command=self._save_settings).pack(pady=5)
 
     def _build_migrate_tab(self, parent):
-        # Status area
-        status_frame = ttk.LabelFrame(parent, text="Status", padding=10)
-        status_frame.pack(fill="x", pady=(0, 10))
+        # --- Album Selection ---
+        album_frame = ttk.LabelFrame(parent, text="Album Selection", padding=10)
+        album_frame.pack(fill="both", expand=True, pady=(0, 10))
 
-        self.status_label = ttk.Label(status_frame, text="Configure credentials in Setup tab, then click Start.", wraplength=600)
+        # Fetch & select buttons
+        album_btn_frame = ttk.Frame(album_frame)
+        album_btn_frame.pack(fill="x", pady=(0, 8))
+        self.fetch_btn = ttk.Button(album_btn_frame, text="📂  Fetch Albums from SmugMug", command=self._fetch_albums)
+        self.fetch_btn.pack(side="left", padx=3)
+        ttk.Button(album_btn_frame, text="Select All", command=self._select_all_albums).pack(side="left", padx=3)
+        ttk.Button(album_btn_frame, text="Select None", command=self._select_no_albums).pack(side="left", padx=3)
+        self.album_count_label = ttk.Label(album_btn_frame, text="", foreground="gray")
+        self.album_count_label.pack(side="right", padx=5)
+
+        # Scrollable album checklist
+        album_list_frame = ttk.Frame(album_frame)
+        album_list_frame.pack(fill="both", expand=True)
+
+        self.album_canvas = tk.Canvas(album_list_frame, highlightthickness=0)
+        album_scrollbar = ttk.Scrollbar(album_list_frame, orient="vertical", command=self.album_canvas.yview)
+        self.album_inner_frame = ttk.Frame(self.album_canvas)
+
+        self.album_inner_frame.bind("<Configure>", lambda e: self.album_canvas.configure(scrollregion=self.album_canvas.bbox("all")))
+        self.album_canvas.create_window((0, 0), window=self.album_inner_frame, anchor="nw")
+        self.album_canvas.configure(yscrollcommand=album_scrollbar.set)
+
+        self.album_canvas.pack(side="left", fill="both", expand=True)
+        album_scrollbar.pack(side="right", fill="y")
+
+        # Enable mousewheel scrolling
+        def _on_mousewheel(event):
+            self.album_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        self.album_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # Placeholder text
+        self.album_placeholder = ttk.Label(self.album_inner_frame,
+            text="Click \"Fetch Albums\" to load your SmugMug albums.\nThen select which ones to migrate.",
+            foreground="gray", justify="center")
+        self.album_placeholder.pack(pady=30)
+
+        # --- Status & Progress ---
+        status_frame = ttk.LabelFrame(parent, text="Status", padding=8)
+        status_frame.pack(fill="x", pady=(0, 5))
+
+        self.status_label = ttk.Label(status_frame, text="Fetch albums, select what to migrate, then click Start.", wraplength=650)
         self.status_label.pack(anchor="w")
 
         self.album_label = ttk.Label(status_frame, text="", foreground="gray")
-        self.album_label.pack(anchor="w", pady=(5, 0))
+        self.album_label.pack(anchor="w", pady=(3, 0))
 
         # Progress bars
-        prog_frame = ttk.LabelFrame(parent, text="Progress", padding=10)
-        prog_frame.pack(fill="x", pady=(0, 10))
+        prog_frame = ttk.LabelFrame(parent, text="Progress", padding=8)
+        prog_frame.pack(fill="x", pady=(0, 5))
 
         ttk.Label(prog_frame, text="Overall:").pack(anchor="w")
         self.overall_progress = ttk.Progressbar(prog_frame, mode="determinate", length=600)
-        self.overall_progress.pack(fill="x", pady=(2, 8))
+        self.overall_progress.pack(fill="x", pady=(2, 4))
         self.overall_pct_label = ttk.Label(prog_frame, text="0 / 0")
         self.overall_pct_label.pack(anchor="e")
 
         ttk.Label(prog_frame, text="Current album:").pack(anchor="w")
         self.album_progress = ttk.Progressbar(prog_frame, mode="determinate", length=600)
-        self.album_progress.pack(fill="x", pady=(2, 8))
+        self.album_progress.pack(fill="x", pady=(2, 4))
         self.album_pct_label = ttk.Label(prog_frame, text="0 / 0")
         self.album_pct_label.pack(anchor="e")
 
         # Counters
         counter_frame = ttk.Frame(parent)
-        counter_frame.pack(fill="x", pady=(0, 10))
+        counter_frame.pack(fill="x", pady=(0, 5))
         self.migrated_label = ttk.Label(counter_frame, text="Migrated: 0")
         self.migrated_label.pack(side="left", padx=15)
         self.skipped_label = ttk.Label(counter_frame, text="Skipped: 0")
@@ -478,17 +525,169 @@ class MigrationApp(tk.Tk):
 
         # Buttons
         btn_frame = ttk.Frame(parent)
-        btn_frame.pack(pady=10)
-        self.start_btn = ttk.Button(btn_frame, text="▶  Start Migration", command=self._start_migration)
+        btn_frame.pack(pady=5)
+        self.start_btn = ttk.Button(btn_frame, text="\u25B6  Start Migration", command=self._start_migration)
         self.start_btn.pack(side="left", padx=5)
-        self.stop_btn = ttk.Button(btn_frame, text="⏹  Stop", command=self._stop_migration, state="disabled")
+        self.stop_btn = ttk.Button(btn_frame, text="\u23F9  Stop", command=self._stop_migration, state="disabled")
         self.stop_btn.pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="🔄  Reset Progress", command=self._reset_progress).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="\U0001F504  Reset Progress", command=self._reset_progress).pack(side="left", padx=5)
 
     def _build_log_tab(self, parent):
         self.log_text = scrolledtext.ScrolledText(parent, wrap="word", height=25, state="disabled", font=("Consolas", 9))
         self.log_text.pack(fill="both", expand=True)
         ttk.Button(parent, text="Clear Log", command=self._clear_log).pack(pady=5)
+
+    def _build_help_tab(self, parent):
+        help_text = scrolledtext.ScrolledText(parent, wrap="word", font=("Arial", 10), state="disabled")
+        help_text.pack(fill="both", expand=True)
+
+        content = """QUICK START GUIDE
+══════════════════════════════════════════════════
+
+1. SETUP (one-time)
+   • Go to the Setup tab
+   • Enter your SmugMug API Key and Secret, then click "Connect SmugMug"
+   • Browse to your Google credentials JSON, then click "Connect Google Drive"
+   • Click "Save Settings"
+
+2. MIGRATE
+   • Go to the Migrate tab
+   • Click "Fetch Albums" to load your SmugMug albums
+   • Check/uncheck albums to choose what to migrate
+   • Click "Start Migration"
+
+
+GETTING YOUR API CREDENTIALS
+══════════════════════════════════════════════════
+
+SmugMug API Key:
+   1. Go to https://api.smugmug.com/api/developer/apply
+   2. Log in and apply for a key with Read access
+   3. Copy the API Key and API Secret
+
+Google Drive Credentials:
+   1. Go to https://console.cloud.google.com/
+   2. Create a project → enable the "Google Drive API"
+   3. Go to APIs & Services → Credentials
+   4. Click Create Credentials → OAuth client ID → Desktop App
+   5. Download the JSON file
+
+
+MIGRATION OPTIONS
+══════════════════════════════════════════════════
+
+Google Drive folder name:
+   The root folder created in your Drive. Default: "SmugMug Migration"
+
+Skip files already in Google Drive:
+   When checked, files that already exist in the destination won't be
+   re-uploaded. Leave this on for resume capability.
+
+Retry previously failed files:
+   When checked, files that failed on a previous run will be attempted again.
+
+
+HOW IT WORKS
+══════════════════════════════════════════════════
+
+   • The tool downloads each photo from SmugMug to a temporary file on
+     your computer, then uploads it to Google Drive
+   • Your SmugMug album folder structure is recreated in Google Drive
+   • Progress is saved after every file — you can stop and resume anytime
+   • Temporary files are deleted immediately after each upload
+   • The tool does NOT modify or delete anything on SmugMug (read-only)
+
+
+FREQUENTLY ASKED QUESTIONS
+══════════════════════════════════════════════════
+
+Q: Will my SmugMug photos be deleted?
+A: No. The tool only reads from SmugMug. Your originals are untouched.
+
+Q: Does it transfer videos too?
+A: Yes. All media files in your albums are transferred.
+
+Q: What if my internet drops?
+A: Just click Start again — it resumes from where it left off.
+
+Q: Can I run it overnight?
+A: Yes. Make sure your computer doesn't go to sleep:
+   Settings → System → Power & sleep → Sleep: Never (plugged in)
+
+Q: Does it keep EXIF/metadata?
+A: Yes. Original files are transferred without modification.
+
+Q: How much Drive storage do I need?
+A: Enough to hold your SmugMug library. Check your SmugMug account
+   settings to see total storage used.
+
+
+TROUBLESHOOTING
+══════════════════════════════════════════════════
+
+"python is not recognized"
+   → Reinstall Python, check "Add python.exe to PATH"
+
+"pip is not recognized"
+   → Use: python -m pip install ...
+
+SmugMug auth error: parameter_absent oauth_callback
+   → Update to the latest version of the tool
+
+SmugMug verification code doesn't work
+   → Click Connect SmugMug again and enter the code quickly
+
+Google Drive: API has not been used / disabled
+   → Go to Google Cloud Console → APIs & Services → Library
+   → Search "Google Drive API" → click Enable
+
+No albums found
+   → Check the Log tab for details. Try fetching again.
+
+Migration stops partway through
+   → Wait a few minutes, then click Start again (it resumes)
+
+
+SPEED ESTIMATES
+══════════════════════════════════════════════════
+
+   100 photos ........... 5-10 minutes
+   500 photos ........... 30 min - 1 hour
+   1,000 photos ......... 1-2 hours
+   5,000 photos ......... 5-8 hours
+   10,000+ photos ....... Overnight
+
+
+REVOKING ACCESS
+══════════════════════════════════════════════════
+
+To remove the tool's access to your accounts:
+
+   SmugMug: Go to your account/privacy settings and revoke the app
+   Google:  Go to https://myaccount.google.com/permissions
+            Find the app and click "Remove Access"
+
+
+For the complete help guide, see HELP.txt included with the tool.
+"""
+
+        help_text.config(state="normal")
+        help_text.insert("1.0", content)
+
+        # Style the headers
+        help_text.tag_configure("header", font=("Arial", 10, "bold"))
+        idx = "1.0"
+        for header in ["QUICK START GUIDE", "GETTING YOUR API CREDENTIALS",
+                        "MIGRATION OPTIONS", "HOW IT WORKS",
+                        "FREQUENTLY ASKED QUESTIONS", "TROUBLESHOOTING",
+                        "SPEED ESTIMATES", "REVOKING ACCESS"]:
+            start = help_text.search(header, idx, stopindex="end")
+            if start:
+                end = f"{start}+{len(header)}c"
+                help_text.tag_add("header", start, end)
+                idx = end
+
+        help_text.config(state="disabled")
 
     def _build_about_tab(self, parent):
         # App title
@@ -496,7 +695,7 @@ class MigrationApp(tk.Tk):
                                 font=("Arial", 16, "bold"))
         title_label.pack(pady=(20, 5))
 
-        version_label = ttk.Label(parent, text="Version 1.0", font=("Arial", 11))
+        version_label = ttk.Label(parent, text="Version 2.0", font=("Arial", 11))
         version_label.pack(pady=(0, 20))
 
         # Credit
@@ -673,6 +872,100 @@ class MigrationApp(tk.Tk):
             messagebox.showerror("Error", f"Google Drive auth failed:\n{e}")
 
     # ---------------------------------------------------------------
+    # Album Selection
+    # ---------------------------------------------------------------
+    def _fetch_albums(self):
+        key = self.sm_key_var.get().strip()
+        secret = self.sm_secret_var.get().strip()
+
+        if not key or not secret:
+            messagebox.showwarning("Setup Needed", "Enter SmugMug API credentials in the Setup tab.")
+            return
+
+        if not self.smugmug:
+            self.smugmug = SmugMugClient(key, secret)
+        if not self.smugmug.session:
+            if not self.smugmug.authenticate_with_saved_token():
+                messagebox.showwarning("Auth Needed", "Click 'Connect SmugMug' in Setup first.")
+                return
+
+        self.fetch_btn.config(state="disabled")
+        self._set_status("Fetching albums from SmugMug...")
+        threading.Thread(target=self._fetch_albums_thread, daemon=True).start()
+
+    def _fetch_albums_thread(self):
+        try:
+            user = self.smugmug.get_authenticated_user()
+            albums_uri = self.smugmug.get_user_albums_uri(user)
+            if not albums_uri:
+                self.after(0, lambda: messagebox.showerror("Error", "Could not determine albums URI."))
+                return
+
+            albums = self.smugmug.get_albums(albums_uri)
+            self.fetched_albums = albums
+            self.after(0, lambda: self._populate_album_list(albums))
+        except Exception as e:
+            self.after(0, lambda: messagebox.showerror("Error", f"Failed to fetch albums:\n{e}"))
+        finally:
+            self.after(0, lambda: self.fetch_btn.config(state="normal"))
+
+    def _populate_album_list(self, albums):
+        # Clear existing checkboxes
+        for widget in self.album_inner_frame.winfo_children():
+            widget.destroy()
+        self.album_vars.clear()
+
+        if not albums:
+            ttk.Label(self.album_inner_frame, text="No albums found.", foreground="gray").pack(pady=20)
+            self._set_status("No albums found.")
+            return
+
+        # Header row
+        header = ttk.Frame(self.album_inner_frame)
+        header.pack(fill="x", padx=5, pady=(0, 5))
+        ttk.Label(header, text="Album Name", font=("Arial", 9, "bold")).pack(side="left")
+        ttk.Label(header, text="Path", font=("Arial", 9, "bold"), foreground="gray").pack(side="right")
+
+        ttk.Separator(self.album_inner_frame, orient="horizontal").pack(fill="x", padx=5)
+
+        for album in albums:
+            album_key = album.get("AlbumKey", "")
+            album_name = album.get("Name", "Untitled")
+            url_path = album.get("UrlPath", "")
+            image_count = album.get("ImageCount", "?")
+
+            var = tk.BooleanVar(value=True)
+            self.album_vars[album_key] = var
+
+            row = ttk.Frame(self.album_inner_frame)
+            row.pack(fill="x", padx=5, pady=1)
+
+            cb = ttk.Checkbutton(row, variable=var)
+            cb.pack(side="left")
+
+            name_text = f"{album_name}  ({image_count} files)"
+            ttk.Label(row, text=name_text, font=("Arial", 9)).pack(side="left", padx=(2, 10))
+            ttk.Label(row, text=url_path, font=("Arial", 8), foreground="gray").pack(side="right")
+
+        selected = sum(1 for v in self.album_vars.values() if v.get())
+        self.album_count_label.config(text=f"{len(albums)} albums found")
+        self._set_status(f"Found {len(albums)} albums. Select which ones to migrate, then click Start.")
+        self._log(f"Fetched {len(albums)} albums from SmugMug.")
+
+    def _select_all_albums(self):
+        for var in self.album_vars.values():
+            var.set(True)
+
+    def _select_no_albums(self):
+        for var in self.album_vars.values():
+            var.set(False)
+
+    def _get_selected_albums(self) -> list:
+        """Return only the albums the user has checked."""
+        selected_keys = {k for k, v in self.album_vars.items() if v.get()}
+        return [a for a in self.fetched_albums if a.get("AlbumKey", "") in selected_keys]
+
+    # ---------------------------------------------------------------
     # Migration
     # ---------------------------------------------------------------
     def _start_migration(self):
@@ -686,6 +979,16 @@ class MigrationApp(tk.Tk):
             return
         if not creds_path:
             messagebox.showwarning("Setup Needed", "Select Google Drive credentials JSON in the Setup tab.")
+            return
+
+        # Check album selection
+        if not self.fetched_albums:
+            messagebox.showwarning("Albums Needed", "Click 'Fetch Albums' first to load your SmugMug albums.")
+            return
+
+        selected = self._get_selected_albums()
+        if not selected:
+            messagebox.showwarning("No Albums Selected", "Select at least one album to migrate.")
             return
 
         # Ensure authenticated
@@ -707,6 +1010,7 @@ class MigrationApp(tk.Tk):
         self.stop_flag.clear()
         self.start_btn.config(state="disabled")
         self.stop_btn.config(state="normal")
+        self.fetch_btn.config(state="disabled")
 
         self.migration_thread = threading.Thread(target=self._run_migration, daemon=True)
         self.migration_thread.start()
@@ -728,35 +1032,19 @@ class MigrationApp(tk.Tk):
 
     def _run_migration(self):
         try:
-            self._set_status("Fetching SmugMug albums...")
+            selected_albums = self._get_selected_albums()
+            self._set_status(f"Migrating {len(selected_albums)} selected albums...")
+            self._log(f"Starting migration of {len(selected_albums)} selected albums.")
+
             user = self.smugmug.get_authenticated_user()
             nickname = user.get("NickName", user.get("Name", "Unknown"))
             self._log(f"SmugMug user: {nickname}")
 
-            # Get albums URI with fallback handling
-            albums_uri = self.smugmug.get_user_albums_uri(user)
-            self._log(f"Albums URI: {albums_uri}")
-            
-            if not albums_uri:
-                self._set_status("Error: Could not determine albums URI.")
-                self._log(f"ERROR: Could not find albums URI. User data keys: {list(user.keys())}")
-                self._log(f"Uris keys: {list(user.get('Uris', {}).keys())}")
-                self._finish()
-                return
-
-            albums = self.smugmug.get_albums(albums_uri)
-            self._log(f"Found {len(albums)} albums.")
-
-            if not albums:
-                self._set_status("No albums found.")
-                self._finish()
-                return
-
-            # Count total images across all albums
-            self._set_status("Counting images across all albums...")
+            # Count total images across selected albums
+            self._set_status("Counting images across selected albums...")
             album_images = []
             total_images = 0
-            for album in albums:
+            for album in selected_albums:
                 if self.stop_flag.is_set():
                     break
                 images = self.smugmug.get_album_images(album.get("AlbumKey", ""))
@@ -929,6 +1217,7 @@ class MigrationApp(tk.Tk):
     def _finish(self):
         self.after(0, lambda: self.start_btn.config(state="normal"))
         self.after(0, lambda: self.stop_btn.config(state="disabled"))
+        self.after(0, lambda: self.fetch_btn.config(state="normal"))
 
 
 # ---------------------------------------------------------------------------
