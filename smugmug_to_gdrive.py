@@ -7,7 +7,7 @@ preserving the album folder structure. Select which albums to migrate.
 
 Created by Jeremy Kritt
 Licensed under the MIT License
-https://github.com/jeremykritt/smugmug-to-gdrive
+https://github.com/jmkritt/smugmug-to-gdrive
 
 Prerequisites:
     pip install requests requests-oauthlib google-auth google-auth-oauthlib google-api-python-client tqdm
@@ -346,7 +346,8 @@ class GoogleDriveClient:
 
     def file_exists(self, filename: str, folder_id: str) -> bool:
         """Check if a file already exists in a folder."""
-        query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+        safe_name = filename.replace("\\", "\\\\").replace("'", "\\'")
+        query = f"name='{safe_name}' and '{folder_id}' in parents and trashed=false"
         results = self.service.files().list(q=query, fields="files(id)").execute()
         return len(results.get("files", [])) > 0
 
