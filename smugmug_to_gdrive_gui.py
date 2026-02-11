@@ -7,7 +7,7 @@ all photos and videos from SmugMug to Google Drive.
 
 Created by Jeremy Kritt
 Licensed under the MIT License
-https://github.com/jeremykritt/smugmug-to-gdrive
+https://github.com/jmkritt/smugmug-to-gdrive
 
 Build as .exe:
     pip install pyinstaller
@@ -286,7 +286,8 @@ class GoogleDriveClient:
         return self.service.files().create(body=meta, media_body=media, fields="id").execute()["id"]
 
     def file_exists(self, filename: str, folder_id: str) -> bool:
-        query = f"name='{filename}' and '{folder_id}' in parents and trashed=false"
+        safe_name = filename.replace("\\", "\\\\").replace("'", "\\'")
+        query = f"name='{safe_name}' and '{folder_id}' in parents and trashed=false"
         results = self.service.files().list(q=query, fields="files(id)").execute()
         return len(results.get("files", [])) > 0
 
@@ -702,7 +703,7 @@ For the complete help guide, see HELP.txt included with the tool.
         credit_frame = ttk.LabelFrame(parent, text="Created By", padding=15)
         credit_frame.pack(fill="x", pady=(0, 15))
         ttk.Label(credit_frame, text="Jeremy Kritt", font=("Arial", 12, "bold")).pack()
-        ttk.Label(credit_frame, text="github.com/jeremykritt", font=("Arial", 10)).pack(pady=(2, 0))
+        ttk.Label(credit_frame, text="github.com/jmkritt", font=("Arial", 10)).pack(pady=(2, 0))
 
         # License
         license_frame = ttk.LabelFrame(parent, text="License", padding=15)
