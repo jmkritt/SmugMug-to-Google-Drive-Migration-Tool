@@ -1,7 +1,7 @@
 ================================================================================
   SmugMug → Google Drive Migration Tool
   Complete Help Guide
-  Version 1.0 | February 2026
+  Version 2.0 | February 2026
   Created by Jeremy Kritt
 ================================================================================
 
@@ -16,14 +16,15 @@ TABLE OF CONTENTS
   7.  Using the App: Setup Tab
   8.  Using the App: Migrate Tab
   9.  Using the App: Log Tab
-  10. Using the App: About Tab
-  11. Building a Windows Executable (.exe)
-  12. How the Migration Works
-  13. Frequently Asked Questions
-  14. Troubleshooting
-  15. Security & Privacy
-  16. Speed & Performance
-  17. Uninstalling & Cleanup
+  10. Using the App: Help Tab
+  11. Using the App: About Tab
+  12. Building a Windows Executable (.exe)
+  13. How the Migration Works
+  14. Frequently Asked Questions
+  15. Troubleshooting
+  16. Security & Privacy
+  17. Speed & Performance
+  18. Uninstalling & Cleanup
 
 
 ================================================================================
@@ -31,7 +32,8 @@ TABLE OF CONTENTS
 ================================================================================
 
 The SmugMug to Google Drive Migration Tool is a desktop application that copies
-all your photos and videos from SmugMug to Google Drive. It preserves your album
+your photos and videos from SmugMug to Google Drive. You can choose exactly
+which albums to migrate or do them all at once. The tool preserves your album
 folder structure, handles large libraries automatically, and can be stopped and
 resumed at any time.
 
@@ -319,26 +321,49 @@ them next time.
 8. USING THE APP: MIGRATE TAB
 ================================================================================
 
-The Migrate tab is where you start, monitor, and control the migration.
+The Migrate tab is where you select albums, start, monitor, and control
+the migration.
 
 
-8.1 Starting a Migration
+8.1 Fetching Albums
+───────────────────
+
+Click "Fetch Albums from SmugMug." The tool connects to your SmugMug account
+and loads a list of all your albums. Each album is displayed with its name,
+file count, and folder path.
+
+This step requires that you have already connected to SmugMug in the Setup
+tab.
+
+
+8.2 Selecting Albums
+────────────────────
+
+After fetching, every album appears with a checkbox. By default, all albums
+are selected. You can:
+
+  • Check or uncheck individual albums
+  • Click "Select All" to check every album
+  • Click "Select None" to uncheck every album
+
+Only the albums you have checked will be migrated when you click Start.
+This lets you migrate in batches or skip albums you don't need.
+
+
+8.3 Starting a Migration
 ─────────────────────────
 
-Click "Start Migration." The tool will first fetch your SmugMug album list,
-then count all images across all albums. This initial scan may take a minute
-or two depending on the size of your library.
-
-Once counting is complete, the tool begins downloading each photo from
-SmugMug and uploading it to Google Drive.
+Click "Start Migration." The tool will count images in your selected albums,
+then begin downloading each photo from SmugMug and uploading it to Google
+Drive. You can watch the progress in real time.
 
 
-8.2 Progress Indicators
+8.4 Progress Indicators
 ───────────────────────
 
 Overall progress bar:
   Shows how many total files have been processed out of the total number
-  found across all albums.
+  found across your selected albums.
 
 Current album progress bar:
   Shows progress within the album currently being processed.
@@ -350,7 +375,7 @@ Counters:
     - Failed: errors encountered
 
 
-8.3 Stopping and Resuming
+8.5 Stopping and Resuming
 ──────────────────────────
 
 Click "Stop" to pause the migration after the current file finishes. The
@@ -358,8 +383,11 @@ tool saves its progress automatically. To resume, simply click "Start
 Migration" again. It will skip all previously completed files and continue
 from where it left off.
 
+You can also change your album selection between runs. For example, migrate
+a few albums today, then come back tomorrow and select different ones.
 
-8.4 Resetting Progress
+
+8.6 Resetting Progress
 ──────────────────────
 
 Click "Reset Progress" if you want to start the migration from scratch. This
@@ -384,16 +412,25 @@ so you have a permanent record even after closing the app.
 
 
 ================================================================================
-10. USING THE APP: ABOUT TAB
+10. USING THE APP: HELP TAB
+================================================================================
+
+The Help tab contains a quick-reference guide built right into the app. It
+covers the most common topics: setup steps, migration options, how it works,
+FAQ, and troubleshooting. You can scroll through it anytime without needing
+to find this file.
+
+
+================================================================================
+11. USING THE APP: ABOUT TAB
 ================================================================================
 
 The About tab displays information about the tool, including the version
-number, author credit, license, and disclaimer. The tool is open source
-under the MIT License.
+number, author credit (Jeremy Kritt), MIT License, and disclaimer.
 
 
 ================================================================================
-11. BUILDING A WINDOWS EXECUTABLE (.exe)
+12. BUILDING A WINDOWS EXECUTABLE (.exe)
 ================================================================================
 
 If you want to create a standalone .exe file that can run without Python
@@ -424,25 +461,24 @@ Step 3: Find your .exe
 
 
 ================================================================================
-12. HOW THE MIGRATION WORKS
+13. HOW THE MIGRATION WORKS
 ================================================================================
 
-12.1 The Migration Process
+13.1 The Migration Process
 ──────────────────────────
 
 When you click Start Migration, the tool performs these steps in order:
 
-  1. Connects to SmugMug and retrieves your user profile.
-  2. Fetches a list of all your albums.
-  3. For each album, retrieves the list of all photos and videos.
-  4. Creates matching folders in Google Drive, preserving your album structure.
-  5. For each photo: downloads it from SmugMug to a temporary file on your
+  1. Reads your selected albums from the checklist.
+  2. For each selected album, retrieves the list of all photos and videos.
+  3. Creates matching folders in Google Drive, preserving your album structure.
+  4. For each photo: downloads it from SmugMug to a temporary file on your
      computer, uploads it to Google Drive, then deletes the temporary file.
-  6. Records progress after each file so the migration can be resumed if
+  5. Records progress after each file so the migration can be resumed if
      interrupted.
 
 
-12.2 Folder Structure
+13.2 Folder Structure
 ─────────────────────
 
 The tool creates a root folder in Google Drive (default name: "SmugMug
@@ -462,7 +498,7 @@ For example:
       └── portrait_02.jpg
 
 
-12.3 File Handling
+13.3 File Handling
 ──────────────────
 
 The tool downloads the largest available version of each photo (typically the
@@ -472,13 +508,18 @@ successful upload, so the tool does not consume significant disk space.
 
 
 ================================================================================
-13. FREQUENTLY ASKED QUESTIONS
+14. FREQUENTLY ASKED QUESTIONS
 ================================================================================
 
 Q: Will my SmugMug photos be deleted?
 A: No. The tool only reads from SmugMug. It downloads copies of your files.
    Your originals remain exactly where they are, completely untouched. The
    SmugMug API key is configured with read-only permissions.
+
+Q: Can I migrate just some of my albums?
+A: Yes! This is new in v2.0. Click "Fetch Albums" on the Migrate tab, then
+   check only the albums you want to migrate. You can do different albums
+   on different days if you like.
 
 Q: Does it transfer videos too?
 A: Yes. The tool transfers all media files in your SmugMug albums, including
@@ -491,10 +532,10 @@ A: The tool saves progress after every file. If your connection drops, the
    reattempt any failed transfers.
 
 Q: Can I run it overnight?
-A: Yes. The tool runs continuously until all files are processed or you
-   click Stop. Make sure your computer does not go to sleep. Adjust your
-   Windows power settings: Settings > System > Power & sleep > set Sleep
-   to "Never" while plugged in.
+A: Yes. The tool runs continuously until all selected files are processed
+   or you click Stop. Make sure your computer does not go to sleep. Adjust
+   your Windows power settings: Settings > System > Power & sleep > set
+   Sleep to "Never" while plugged in.
 
 Q: What about duplicate files?
 A: By default, the tool checks if a file with the same name already exists
@@ -506,22 +547,22 @@ A: Yes. The tool downloads and uploads the original file bytes without
    GPS coordinates, and timestamps are preserved.
 
 Q: How much Google Drive storage do I need?
-A: You need enough free space to hold all the photos and videos from your
-   SmugMug account. Check your SmugMug account settings to see your total
-   storage usage, then compare to your available Google Drive space.
+A: You need enough free space to hold the photos from the albums you select.
+   Check your SmugMug account settings to see your total storage usage.
 
-Q: Can I migrate only specific albums?
-A: The current version migrates all albums. If you need to migrate only
-   certain albums, you can temporarily reorganize in SmugMug first.
+Q: Can I migrate different albums at different times?
+A: Yes. Fetch your album list, select a batch, migrate them. Next time,
+   fetch again, select different albums, and migrate those. Previously
+   completed files are automatically skipped.
 
 Q: Can I use this on a Mac or Linux?
 A: Yes. The Python script works on Mac and Linux. Install Python, install
-   the dependencies, and run the script. The .exe build is Windows-specific,
+   the dependencies, and run the script. The .exe build is Windows-specific
    but the script itself is cross-platform.
 
 
 ================================================================================
-14. TROUBLESHOOTING
+15. TROUBLESHOOTING
 ================================================================================
 
 ISSUE: "python" is not recognized
@@ -550,9 +591,9 @@ CAUSE: Consent screen not configured or credentials expired
 FIX:   Reconfigure OAuth consent screen, or delete google_token.json and
        reconnect
 
-ISSUE: No albums found
+ISSUE: No albums found after clicking Fetch Albums
 CAUSE: API response format issue or empty account
-FIX:   Update to latest version; check Log tab for diagnostic details
+FIX:   Check the Log tab for details. Ensure SmugMug is connected.
 
 ISSUE: Migration stops partway through
 CAUSE: Rate limiting or network issues
@@ -569,7 +610,7 @@ FIX:   Try: python -m PyInstaller (note capitalization)
 
 
 ================================================================================
-15. SECURITY & PRIVACY
+16. SECURITY & PRIVACY
 ================================================================================
 
   • Everything runs locally. The tool runs entirely on your computer. Your
@@ -598,7 +639,7 @@ FIX:   Try: python -m PyInstaller (note capitalization)
 
 
 ================================================================================
-16. SPEED & PERFORMANCE
+17. SPEED & PERFORMANCE
 ================================================================================
 
 Migration speed depends on your internet connection, the size of your photos,
@@ -627,7 +668,7 @@ limits.
 
 
 ================================================================================
-17. UNINSTALLING & CLEANUP
+18. UNINSTALLING & CLEANUP
 ================================================================================
 
 If you want to remove the migration tool after your migration is complete:
@@ -691,5 +732,5 @@ Google LLC. Use at your own risk.
 
 
 ─────────────────────────────────────────────────────────────────────────────
-  Created by Jeremy Kritt | Version 1.0 | February 2026
+  Created by Jeremy Kritt | Version 2.0 | February 2026
 ─────────────────────────────────────────────────────────────────────────────
